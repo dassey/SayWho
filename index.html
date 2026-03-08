@@ -20,14 +20,6 @@
     <header class="header">
       <div class="header-inner">
         <div class="logo">
-          <svg class="logo-img" viewBox="0 0 56 36" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <path d="M0 8C0 3.58 3.58 0 8 0H32L20 36H8C3.58 36 0 32.42 0 28V8Z" fill="#a89880" />
-            <path d="M56 28C56 32.42 52.42 36 48 36H20L32 0H48C52.42 0 56 3.58 56 8V28Z" fill="#2c2720" />
-            <text x="4" y="23" font-family="system-ui,sans-serif" font-weight="700" font-size="11"
-              fill="#f5f0ea">Say</text>
-            <text x="28" y="23" font-family="system-ui,sans-serif" font-weight="700" font-size="11"
-              fill="#f5f0ea">Who</text>
-          </svg>
           <span class="logo-text">Say<span class="logo-accent">Who</span></span>
         </div>
         <button class="settings-gear" id="settings-btn" title="Settings (Ctrl+,)">
@@ -43,12 +35,35 @@
 
     <main class="main">
 
+      <!-- ── Hero Banner ─────────────────────────── -->
+      <div class="hero-banner">
+        <div class="hero-left">
+          <div class="hero-eyebrow">Speaker Attribution Engine</div>
+          <h1 class="hero-title">Every voice.<br>Every line.<br><span class="hero-accent">Identified.</span></h1>
+          <p class="hero-sub">Drop a manuscript. SayWho finds who's speaking and wraps every line in
+            <code>[NAME]…[/NAME]</code> tags — ready for TTS, analysis, or editing.</p>
+        </div>
+        <div class="hero-right">
+          <div class="hero-demo" aria-hidden="true">
+            <div class="demo-line prose">Aris turned from the console.</div>
+            <div class="demo-line tagged"><span class="demo-bracket" style="color:#ff6b35">[Aris]</span>Re-run it.<span
+                class="demo-bracket" style="color:#ff6b35">[/Aris]</span></div>
+            <div class="demo-line prose">Miller didn't look up.</div>
+            <div class="demo-line tagged"><span class="demo-bracket" style="color:#f5c842">[Miller]</span>Already ran
+              it. Twice.<span class="demo-bracket" style="color:#f5c842">[/Miller]</span></div>
+            <div class="demo-line prose">No one else spoke.</div>
+            <div class="demo-line tagged"><span class="demo-bracket" style="color:#7a6a58">[Nobody]</span>Then what is
+              it?<span class="demo-bracket" style="color:#7a6a58">[/Nobody]</span></div>
+          </div>
+        </div>
+      </div>
+
       <!-- ── Upload / Input ─────────────────────────── -->
       <section class="section" id="upload-section">
         <div class="section-header">
-          <h1 class="section-title">Who said what?</h1>
-          <p class="section-desc">Upload any book file and SayWho identifies every speaker, then wraps their dialogue in
-            <code>[NAME]…[/NAME]</code> tags. Unattributed lines are tagged as <code>[Nobody]</code>.</p>
+          <h2 class="section-title">Analyze your book</h2>
+          <p class="section-desc">Supports .md · .txt · .docx · .pdf — or paste directly. Works on any fiction or prose.
+          </p>
         </div>
 
         <div class="upload-zone" id="drop-zone">
@@ -123,6 +138,14 @@
                 </svg>
                 Download
               </button>
+              <button class="btn btn--ghost btn--sm btn--tts" id="send-tts-btn"
+                title="Send tagged text to TTS-Story running at localhost:5000">
+                <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+                  <path d="M1 6h10M7 2l4 4-4 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"
+                    stroke-linejoin="round" />
+                </svg>
+                TTS-Story
+              </button>
               <button class="btn btn--ghost btn--sm" id="dialogue-only-btn" title="Show only tagged lines">Dialogue
                 Only</button>
               <label class="toggle-wrap" title="Toggle colour highlights">
@@ -166,67 +189,53 @@
             <button class="theme-btn" data-theme="black-coffee">Black Coffee</button>
           </div>
         </section>
-
         <section class="settings-section">
           <h4 class="settings-section-title">Custom Colors</h4>
           <div class="color-rows">
-            <div class="color-row">
-              <label class="color-row-label">Background</label>
-              <input type="color" data-var="--bg" title="Page background" />
-            </div>
-            <div class="color-row">
-              <label class="color-row-label">Panel</label>
-              <input type="color" data-var="--bg-surface" title="Panel background" />
-            </div>
-            <div class="color-row">
-              <label class="color-row-label">Card</label>
-              <input type="color" data-var="--bg-elevated" title="Elevated card background" />
-            </div>
-            <div class="color-row">
-              <label class="color-row-label">Border</label>
-              <input type="color" data-var="--border" title="Border color" />
-            </div>
-            <div class="color-row">
-              <label class="color-row-label">Text</label>
-              <input type="color" data-var="--text-primary" title="Primary text" />
-            </div>
-            <div class="color-row">
-              <label class="color-row-label">Secondary text</label>
-              <input type="color" data-var="--text-secondary" title="Secondary text" />
-            </div>
-            <div class="color-row">
-              <label class="color-row-label">Accent</label>
-              <input type="color" data-var="--rust-neon" title="Primary accent (rust neon)" />
-            </div>
-            <div class="color-row">
-              <label class="color-row-label">Accent 2</label>
-              <input type="color" data-var="--ochre-neon" title="Secondary accent (ochre)" />
-            </div>
+            <div class="color-row"><label class="color-row-label">Background</label><input type="color"
+                data-var="--bg" /></div>
+            <div class="color-row"><label class="color-row-label">Panel</label><input type="color"
+                data-var="--bg-surface" /></div>
+            <div class="color-row"><label class="color-row-label">Card</label><input type="color"
+                data-var="--bg-elevated" /></div>
+            <div class="color-row"><label class="color-row-label">Border</label><input type="color"
+                data-var="--border" /></div>
+            <div class="color-row"><label class="color-row-label">Text</label><input type="color"
+                data-var="--text-primary" /></div>
+            <div class="color-row"><label class="color-row-label">Secondary text</label><input type="color"
+                data-var="--text-secondary" /></div>
+            <div class="color-row"><label class="color-row-label">Accent</label><input type="color"
+                data-var="--rust-neon" /></div>
+            <div class="color-row"><label class="color-row-label">Accent 2</label><input type="color"
+                data-var="--ochre-neon" /></div>
           </div>
         </section>
-
+        <section class="settings-section">
+          <h4 class="settings-section-title">TTS-Story</h4>
+          <div class="color-row" style="flex-direction:column; align-items:flex-start; gap:4px;">
+            <label class="color-row-label">Host URL</label>
+            <input id="tts-host-input" class="search-input" style="max-width:100%; width:100%;"
+              value="http://localhost:5000" placeholder="http://localhost:5000" />
+          </div>
+          <p class="settings-about" style="margin-top:6px;">The <em>TTS-Story →</em> button copies tagged text to
+            clipboard and opens TTS-Story's Generate tab. Paste directly — speaker tags are auto-detected.</p>
+        </section>
         <section class="settings-section">
           <h4 class="settings-section-title">About</h4>
-          <p class="settings-about">SayWho — general-purpose book dialogue tagger. Tags run locally in your browser,
-            nothing is uploaded.</p>
-          <p class="settings-about" style="margin-top:6px; font-size:10px; opacity:0.5;">Tip: Ctrl+, to open settings ·
-            Ctrl+Enter to analyze</p>
+          <p class="settings-about">SayWho — general-purpose book dialogue tagger. Runs locally in your browser, nothing
+            is uploaded.</p>
+          <p class="settings-about" style="margin-top:6px; font-size:10px; opacity:0.5;">Ctrl+, → settings · Ctrl+Enter
+            → analyze</p>
         </section>
       </div>
     </aside>
 
-    <!-- Settings backdrop -->
-    <div class="settings-backdrop hidden" id="settings-backdrop"></div>
-
     <!-- ── Tag Reassignment Popup ──────────────── -->
     <div class="floating-popup hidden" id="tag-popup"></div>
-
     <!-- ── Chip Color Context Menu ─────────────── -->
     <div class="floating-popup hidden" id="chip-color-menu"></div>
-
     <!-- ── Shared click-outside backdrop ───────── -->
     <div class="popup-backdrop hidden" id="popup-backdrop"></div>
-
     <!-- Toast -->
     <div class="toast-container" id="toast-container"></div>
   </div>

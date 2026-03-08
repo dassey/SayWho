@@ -1035,3 +1035,132 @@ body {
     width: 100%;
   }
 }
+
+/* ─── HERO BANNER ───────────────────────────────────────────── */
+.hero-banner {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 32px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  padding: 36px 40px;
+  align-items: center;
+  overflow: hidden;
+  position: relative;
+}
+
+/* subtle ambient glow */
+.hero-banner::before {
+  content: '';
+  position: absolute;
+  top: -60px;
+  left: -60px;
+  width: 300px;
+  height: 300px;
+  background: radial-gradient(ellipse, rgba(168, 64, 32, 0.12) 0%, transparent 70%);
+  pointer-events: none;
+}
+
+.hero-eyebrow {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  color: var(--rust-neon);
+  margin-bottom: 12px;
+}
+
+.hero-title {
+  font-size: 32px;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  line-height: 1.15;
+  color: var(--text-primary);
+  margin-bottom: 14px;
+}
+
+.hero-accent {
+  color: var(--rust-neon);
+}
+
+.hero-sub {
+  font-size: 13px;
+  color: var(--text-secondary);
+  line-height: 1.7;
+  max-width: 380px;
+}
+
+.hero-sub code {
+  font-family: var(--font-mono);
+  background: rgba(139, 58, 30, 0.15);
+  color: var(--rust-neon);
+  padding: 1px 5px;
+  border-radius: var(--r-sm);
+  font-size: 11px;
+}
+
+/* Live demo card */
+.hero-demo {
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  padding: 16px 18px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.demo-line {
+  line-height: 1.7;
+}
+
+.demo-line.prose {
+  color: var(--text-muted);
+  padding-left: 12px;
+  border-left: 2px solid var(--border);
+}
+
+.demo-line.tagged {
+  color: var(--text-secondary);
+}
+
+.demo-bracket {
+  font-weight: 700;
+  font-size: 10px;
+  letter-spacing: 0.04em;
+}
+
+/* responsive: stack on narrow */
+@media (max-width: 720px) {
+  .hero-banner {
+    grid-template-columns: 1fr;
+  }
+
+  .hero-right {
+    display: none;
+  }
+
+  .hero-title {
+    font-size: 24px;
+  }
+}
+
+/* ─── TTS-STORY BUTTON ACCENT ───────────────────────────────── */
+.btn--tts {
+  border-color: rgba(80, 184, 160, 0.4);
+  color: rgba(80, 184, 160, 0.8);
+}
+
+.btn--tts:hover {
+  border-color: #50b8a0;
+  color: #50b8a0;
+  background: rgba(80, 184, 160, 0.08);
+}
+
+.btn--tts.sending {
+  opacity: 0.6;
+  pointer-events: none;
+}

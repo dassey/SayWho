@@ -384,13 +384,37 @@ async function loadFile(file) {
 
 clearPasteBtn.addEventListener('click', () => { pasteInput.value = ''; pasteInput.focus(); });
 
+/* ─── TEXT NORMALIZATION ────────────────────────────────── */
+/**
+ * Collapse word-wrapped lines (e.g. text pasted from PDFs or editors
+ * that insert hard line-breaks every ~70 chars) into proper paragraphs.
+ * Real paragraph breaks (blank lines) are preserved.
+ * Dialogue that straddles two wrapped lines is rejoined into one line
+ * so the attribution regexes can see the full quote + attribution.
+ */
+function normalizeText(raw) {
+    // Standardise endings
+    let t = raw.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+    // Protect real paragraph breaks (2+ newlines) by a placeholder
+    t = t.replace(/\n{2,}/g, '\x00');
+    // Collapse single newlines (word-wraps) → space
+    t = t.replace(/([^\x00])\n([^\x00])/g, '$1 $2');
+    // Tidy up double spaces
+    t = t.replace(/ {2,}/g, ' ');
+    // Restore paragraph breaks
+    t = t.replace(/\x00/g, '\n\n');
+    return t.trim();
+}
+
 /* ─── ANALYSIS ───────────────────────────────────────────── */
 analyzeBtn.addEventListener('click', runAnalysis);
 
 async function runAnalysis() {
-    const text = pasteInput.value.trim();
-    if (!text) { showToast('⚠ Please upload or paste text first.', 'error'); return; }
+    const raw = pasteInput.value.trim();
+    if (!raw) { showToast('⚠ Please upload or paste text first.', 'error'); return; }
 
+    // Normalize word-wrapped text so engine sees full lines
+    const text = normalizeText(raw);
     currentText = text;
     tagOverrides.clear();
     analyzeBtn.disabled = true;
@@ -857,6 +881,49 @@ downloadBtn.addEventListener('click', () => {
     URL.revokeObjectURL(url);
     showToast('✓ Downloaded tagged_book.txt', 'success');
 });
+
+/* ─── SEND TO TTS-STORY ──────────────────────────────────── */
+const sendTtsBtn = document.getElementById('send-tts-btn');
+if (sendTtsBtn) {
+    sendTtsBtn.addEventListener('click', sendToTTSStory);
+}
+
+async function sendToTTSStory() {
+    if (!analysisResult) { showToast('⚠ Analyze your book first.', 'error'); return; }
+
+    const tagged = generateTaggedText();
+    const hostInput = document.getElementById('tts-host-input');
+    const host = (hostInput ? hostInput.value.trim() : 'http://localhost:5000').replace(/\/$/, '');
+
+    // Reliable clipboard copy that works on file:// pages
+    let copied = false;
+    try {
+        // Modern API first
+        await navigator.clipboard.writeText(tagged);
+        copied = true;
+    } catch {
+        // Fallback: textarea + execCommand (works on file://)
+        try {
+            const ta = document.createElement('textarea');
+            ta.value = tagged;
+            ta.style.cssText = 'position:fixed;top:0;left:0;opacity:0;pointer-events:none;';
+            document.body.appendChild(ta);
+            ta.focus(); ta.select();
+            copied = document.execCommand('copy');
+            document.body.removeChild(ta);
+        } catch { /* truly failed */ }
+    }
+
+    // Open TTS-Story — user may need to start it first, that's fine
+    window.open(host, '_blank');
+
+    showToast(
+        copied
+            ? `✓ Tagged text copied — paste it in TTS-Story → Generate tab`
+            : `✓ Opened TTS-Story — manually copy the output and paste in Generate`,
+        'success'
+    );
+}
 
 resetBtn.addEventListener('click', () => {
     pasteInput.value = ''; currentText = ''; analysisResult = null;
