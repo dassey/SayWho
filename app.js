@@ -20,9 +20,9 @@ const PALETTE = [
 const NOBODY_PAL = { color: '#7a6a58', bg: 'rgba(100,90,75,0.15)' };
 
 function getPal(s) {
-    if (s.name === 'Nobody') return NOBODY_PAL;
     const override = speakerColorOverrides.get(s.name);
     if (override) return override;
+    if (s.name === 'Nobody') return NOBODY_PAL;
     return PALETTE[s.colorIndex % PALETTE.length];
 }
 
@@ -235,25 +235,50 @@ class SpeakerEngine {
                 continue;
             }
 
-            const firstQ = line.indexOf('"');
-            if (firstQ > 0) {
-                this._scanProse(line.slice(0, firstQ), names, lastGenderChar, (name) => {
-                    lastMentionedChar = name; lastMentionedUsedCount = 0;
-                });
+            // Resolve speaker PER-QUOTE using a local context window.
+            // This handles long lines (blob text) where multiple speakers appear.
+            const QUOTE_RE = /"([^"]+)"/g;
+            let qm;
+            QUOTE_RE.lastIndex = 0;
+            const parts = [];
+            let lastIdx = 0;
+
+            while ((qm = QUOTE_RE.exec(line)) !== null) {
+                const quoteStart = qm.index;
+                const quoteEnd = qm.index + qm[0].length;
+                const content = qm[1];
+
+                // Scan prose BEFORE this quote to update tracking
+                const beforeQuote = line.slice(lastIdx, quoteStart);
+                if (beforeQuote.trim()) {
+                    this._scanProse(beforeQuote, names, lastGenderChar, (name) => {
+                        lastMentionedChar = name; lastMentionedUsedCount = 0;
+                    });
+                }
+
+                // Local context: 350 chars before quote + the quote + 200 chars after
+                const ctxStart = Math.max(0, quoteStart - 350);
+                const ctxEnd = Math.min(line.length, quoteEnd + 200);
+                const ctx = line.slice(ctxStart, ctxEnd);
+
+                const speaker = this._resolve4Tier(ctx, names, SPEECH_VERBS_RE, lastMentionedChar, lastMentionedUsedCount, lastGenderChar);
+                const effectiveSpeaker = speaker || 'Nobody';
+
+                if (effectiveSpeaker !== 'Nobody') {
+                    if (/\b(he|his|him)\b/i.test(ctx)) lastGenderChar.m = effectiveSpeaker;
+                    if (/\b(she|her|hers)\b/i.test(ctx)) lastGenderChar.f = effectiveSpeaker;
+                    if (effectiveSpeaker === lastMentionedChar) lastMentionedUsedCount++;
+                    else { lastMentionedChar = effectiveSpeaker; lastMentionedUsedCount = 0; }
+                }
+
+                parts.push(line.slice(lastIdx, quoteStart));
+                parts.push(`[${effectiveSpeaker}]${content}[/${effectiveSpeaker}]`);
+                lastIdx = quoteEnd;
             }
+            parts.push(line.slice(lastIdx));
 
-            const speaker = this._resolve4Tier(line, names, SPEECH_VERBS_RE, lastMentionedChar, lastMentionedUsedCount, lastGenderChar);
-
-            if (speaker && speaker !== 'Nobody') {
-                if (/\b(he|his|him)\b/i.test(line)) lastGenderChar.m = speaker;
-                if (/\b(she|her|hers)\b/i.test(line)) lastGenderChar.f = speaker;
-                if (speaker === lastMentionedChar) lastMentionedUsedCount++;
-                else { lastMentionedChar = speaker; lastMentionedUsedCount = 0; }
-            }
-
-            const effectiveSpeaker = speaker || 'Nobody';
-            const tagged = line.replace(/"([^"]+)"/g, (_, content) => `[${effectiveSpeaker}]${content}[/${effectiveSpeaker}]`);
-            this.segments.push({ type: 'speech', speaker: effectiveSpeaker, content: tagged });
+            const tagged = parts.join('');
+            this.segments.push({ type: 'speech', speaker: '', content: tagged });
             result.push(tagged);
         }
         this.taggedText = result.join('\n');
@@ -393,17 +418,43 @@ clearPasteBtn.addEventListener('click', () => { pasteInput.value = ''; pasteInpu
  * so the attribution regexes can see the full quote + attribution.
  */
 function normalizeText(raw) {
-    // Standardise endings
     let t = raw.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
-    // Protect real paragraph breaks (2+ newlines) by a placeholder
     t = t.replace(/\n{2,}/g, '\x00');
-    // Collapse single newlines (word-wraps) → space
     t = t.replace(/([^\x00])\n([^\x00])/g, '$1 $2');
-    // Tidy up double spaces
     t = t.replace(/ {2,}/g, ' ');
-    // Restore paragraph breaks
     t = t.replace(/\x00/g, '\n\n');
-    return t.trim();
+    t = t.trim();
+    const newlines = (t.match(/\n/g) || []).length;
+    if (t.length > 200 && newlines < t.length / 400) {
+        t = splitSentencesAware(t);
+    }
+    return t;
+}
+
+/**
+ * Quote-aware sentence splitter: only breaks on [.!?] + space + Capital
+ * when NOT inside a "..." string — so "Inertia. Constant. Stable." stays whole.
+ */
+function splitSentencesAware(text) {
+    const parts = [];
+    let segStart = 0;
+    let inQuote = false;
+    for (let i = 0; i < text.length; i++) {
+        const ch = text[i];
+        if (ch === '"') { inQuote = !inQuote; continue; }
+        if (!inQuote && (ch === '.' || ch === '!' || ch === '?')) {
+            let j = i + 1;
+            if (j < text.length && text[j] === '"') j++;
+            while (j < text.length && text[j] === ' ') j++;
+            if (j < text.length && /[A-Z"]/.test(text[j]) && j > i + 1) {
+                parts.push(text.slice(segStart, j).trim());
+                segStart = j;
+                i = j - 1;
+            }
+        }
+    }
+    parts.push(text.slice(segStart).trim());
+    return parts.filter(Boolean).join('\n');
 }
 
 /* ─── ANALYSIS ───────────────────────────────────────────── */
@@ -520,9 +571,13 @@ function renderStats() {
     const totalLines = currentText.split('\n').length;
     const totalSpeakers = analysisResult.speakers.length;
     const totalDialogue = analysisResult.speakers.reduce((a, s) => a + (s.taggedCount ?? s.count), 0);
+    // Count " marks to get exact number of dialogue exchanges
+    const quoteMarks = (currentText.match(/"/g) || []).length;
+    const quotePairs = Math.floor(quoteMarks / 2);
     statsBar.innerHTML = `
       <div class="stat-item"><span class="stat-label">Speakers</span><span class="stat-value accent">${totalSpeakers}</span></div>
-      <div class="stat-item"><span class="stat-label">Dialogue Lines</span><span class="stat-value">${totalDialogue}</span></div>
+      <div class="stat-item"><span class="stat-label">Tagged</span><span class="stat-value">${totalDialogue}</span></div>
+      <div class="stat-item"><span class="stat-label">Quote Pairs</span><span class="stat-value ${totalDialogue === quotePairs ? 'accent' : ''}" title="Expected dialogue exchanges (&quot; count ÷ 2)">${quotePairs}</span></div>
       <div class="stat-item"><span class="stat-label">Total Lines</span><span class="stat-value">${totalLines.toLocaleString()}</span></div>
       <div class="stat-item"><span class="stat-label">Characters</span><span class="stat-value">${currentText.length.toLocaleString()}</span></div>
     `;
@@ -570,7 +625,7 @@ function generateTaggedText() {
 
     const lines = currentText.split(/\r?\n/);
     const result = [];
-    const speakersSorted = analysisResult.speakers.map(s => s.name).filter(n => n !== 'Nobody').sort((a, b) => b.length - a.length);
+    const names = analysisResult.speakers.map(s => s.name).filter(n => n !== 'Nobody').sort((a, b) => b.length - a.length);
     const SPEECH_VERBS_RE = /\b(said|asked|replied|answered|shouted|whispered|called|cried|muttered|added|continued|declared|announced|stated|explained|noted|responded|interrupted|growled|repeated|confirmed|told|breathed|snapped|cut|nodded|turned)\b/i;
 
     let lastMentionedChar = null;
@@ -581,35 +636,56 @@ function generateTaggedText() {
         const hasQuote = /"/.test(line);
 
         if (!hasQuote) {
-            scanProse(line, speakersSorted, lastGenderChar, (name) => { lastMentionedChar = name; lastMentionedUsedCount = 0; });
+            scanProse(line, names, lastGenderChar, (name) => { lastMentionedChar = name; lastMentionedUsedCount = 0; });
             result.push(line);
             continue;
         }
 
-        const firstQ = line.indexOf('"');
-        if (firstQ > 0) {
-            scanProse(line.slice(0, firstQ), speakersSorted, lastGenderChar, (name) => { lastMentionedChar = name; lastMentionedUsedCount = 0; });
-        }
+        // Per-quote resolution with local context window
+        const QUOTE_RE = /"([^"]+)"/g;
+        let qm;
+        QUOTE_RE.lastIndex = 0;
+        const parts = [];
+        let lastIdx = 0;
 
-        const speaker = resolve4Tier(line, speakersSorted, SPEECH_VERBS_RE, lastMentionedChar, lastMentionedUsedCount, lastGenderChar);
-        const resolvedSpeaker = speaker || 'Nobody';
+        while ((qm = QUOTE_RE.exec(line)) !== null) {
+            const quoteStart = qm.index;
+            const quoteEnd = qm.index + qm[0].length;
+            const content = qm[1];
 
-        if (resolvedSpeaker !== 'Nobody') {
-            if (/\b(he|his|him)\b/i.test(line)) lastGenderChar.m = resolvedSpeaker;
-            if (/\b(she|her|hers)\b/i.test(line)) lastGenderChar.f = resolvedSpeaker;
-            if (resolvedSpeaker === lastMentionedChar) lastMentionedUsedCount++;
-            else { lastMentionedChar = resolvedSpeaker; lastMentionedUsedCount = 0; }
-        }
+            // Scan prose before this quote to update speaker tracking
+            const beforeQuote = line.slice(lastIdx, quoteStart);
+            if (beforeQuote.trim()) {
+                scanProse(beforeQuote, names, lastGenderChar, (name) => { lastMentionedChar = name; lastMentionedUsedCount = 0; });
+            }
 
-        // Apply content-key overrides
-        const tagged = line.replace(/"([^"]+)"/g, (_, content) => {
+            // Local context: 350 chars before + quote + 200 chars after
+            const ctx = line.slice(Math.max(0, quoteStart - 350), Math.min(line.length, quoteEnd + 200));
+            const speaker = resolve4Tier(ctx, names, SPEECH_VERBS_RE, lastMentionedChar, lastMentionedUsedCount, lastGenderChar);
+            const resolved = speaker || 'Nobody';
+
+            if (resolved !== 'Nobody') {
+                if (/\b(he|his|him)\b/i.test(ctx)) lastGenderChar.m = resolved;
+                if (/\b(she|her|hers)\b/i.test(ctx)) lastGenderChar.f = resolved;
+                if (resolved === lastMentionedChar) lastMentionedUsedCount++;
+                else { lastMentionedChar = resolved; lastMentionedUsedCount = 0; }
+            }
+
+            // Apply content-key overrides
             const slice = content.trim().slice(0, 60);
             const override = tagOverrides.get(slice);
-            const effectiveSpeaker = override ?? resolvedSpeaker;
-            if (!activeSpeakers.has(effectiveSpeaker)) return `"${content}"`;
-            return `[${effectiveSpeaker}]${content}[/${effectiveSpeaker}]`;
-        });
-        result.push(tagged);
+            const effectiveSpeaker = override ?? resolved;
+
+            parts.push(line.slice(lastIdx, quoteStart));
+            if (activeSpeakers.has(effectiveSpeaker)) {
+                parts.push(`[${effectiveSpeaker}]${content}[/${effectiveSpeaker}]`);
+            } else {
+                parts.push(`"${content}"`);
+            }
+            lastIdx = quoteEnd;
+        }
+        parts.push(line.slice(lastIdx));
+        result.push(parts.join(''));
     }
     return result.join('\n');
 }
